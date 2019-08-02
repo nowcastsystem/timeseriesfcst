@@ -18,7 +18,7 @@ end = '2019-07-12'
 dtindex = pd.date_range(start=start,end=end,freq='D')
 
 dataprep.upload_data(code=code,start=start,end=end)
-
+print('uploaddata')
 fe.upload_feature(code=code,dtindex=dtindex)
 
 xgbtrain.model_train(code)

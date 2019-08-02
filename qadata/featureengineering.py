@@ -2,6 +2,7 @@ import pandas as pd
 import pymongo
 import json
 import datetime
+import QUANTAXIS as qa
 
 def get_data(code):
     # connect to mongodb
@@ -11,6 +12,7 @@ def get_data(code):
     cursor = datacol.find()
     outcome = pd.DataFrame(list(cursor))
     outcome = outcome.drop(columns = '_id')
+    outcome['date'] = pd.to_datetime(outcome['date'])
     outcome.set_index('date', inplace=True)
     return outcome
 
@@ -18,7 +20,7 @@ def get_data(code):
 def get_lag(data, lags, unit):
     lagdata_output = pd.DataFrame(index=data.index)
     for lag in lags:
-        lagdata = data.shift(lag,unit)
+        lagdata = data.shift(lag,freq = unit)
         lagdatanames = [colname + "lag" + str(lag) + unit for colname in data.columns]
         lagdata.columns = lagdatanames
         lagdata_output = lagdata_output.join(lagdata)
@@ -45,7 +47,7 @@ def gettimefeature(uniquedtseq):
     timefeature = pd.DataFrame(index=uniquedtseq)
     # timefeature['Hour'] = uniquedtseq.hour
     timefeature['DayofWeek'] = uniquedtseq.weekday
-    timefeature = pd.get_dummies(timefeature, prefix='DayofWeek', columns='DayofWeek')
+    timefeature = pd.get_dummies(timefeature['DayofWeek'], prefix='DayofWeek')
     return timefeature
 
 
@@ -56,8 +58,8 @@ def get_fulldf(outcome, dtindex):
             fulldf: the first column is outcome and the rest of columns are features.
     '''
 
-    outcomelag = get_lag(data=outcome, lags=range(1, 3), unit='D')
-    outcomelagmean = get_lag_mean(data=outcome, lags=range(1, 3), unit='D', meanby='D')
+    outcomelag = get_lag(data=outcome, lags=range(1, 40), unit='D')
+    outcomelagmean = get_lag_mean(data=outcome, lags=range(1, 40), unit='D', meanby='D')
 
     # predictorslag = get_lag(data=predictors, lags=range(1, 10), unit='D')
     # predictorslagmean = get_lag_mean(data=predictors, lags=range(1, 10), unit='D', meanby='D')
@@ -73,9 +75,32 @@ def get_fulldf(outcome, dtindex):
 
     return fulldf
 
+def date2str(data):
+
+    if 'date' in data.columns:
+        data.date = data.date.apply(str)
+    return json.loads(data.to_json(orient='records'))
+
+def get_index(fulldf,code,end):
+    startdate = fulldf.index[0]
+    startdate = str(startdate)[0:10]
+    print('startdate')
+    data = qa.QA_fetch_stock_day_adv(code=code, start=startdate, end=end)
+    result = data.data
+    result = result.sort_index(ascending=False)
+    result = result.reset_index(level=1)
+    result = result.drop(columns='code')
+    dateindex = pd.DataFrame(result.index)
+    print('getindex')
+    return dateindex
+
+
 def upload_feature(code,dtindex):
     outcome = get_data(code=code)
     fulldf = get_fulldf(outcome=outcome,dtindex=dtindex)
+    myclient = pymongo.MongoClient("mongodb://localhost:27017/")
+    database = myclient['mydatabase']
     fullcol = database[code+'fulldf'+str(datetime.date.today())]
     fulldf['date'] = fulldf.index
-    fullcol.insert(json.loads(fulldf.T.to_json()).values())
+    fulldf = date2str(fulldf)
+    fullcol.insert(fulldf)

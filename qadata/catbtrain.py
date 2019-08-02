@@ -1,6 +1,11 @@
-#train model with xgboost
+#catboost
+
+from catboost import CatBoostRegressor, Pool, cv
+from catboost import CatBoost
+from sklearn.metrics import accuracy_score
 
 import xgboost as xgb
+
 from pandas.plotting import register_matplotlib_converters
 import pymongo
 import datetime
@@ -29,18 +34,17 @@ class XGBInput(object):
         self.dtraintest = xgb.DMatrix(covariate, label=label)
         self.traintestindex = covariate.index
 
-
     def gettrain(self):
         return self.dtrain, self.covariatetrain, self.labeltrain
 
     def gettest(self):
         return self.dtest, self.covariatetest, self.labeltest
-    
+
 
 def get_fulldf(code):
     myclient = pymongo.MongoClient("mongodb://localhost:27017/")
     database = myclient['mydatabase']
-    fullcol = database[code+'fulldf'+str(datetime.date.today())]
+    fullcol = database[code + 'fulldf' + str(datetime.date.today())]
     cursor = fullcol.find()
     fulldf = pd.DataFrame(list(cursor))
     fulldf = fulldf.drop(columns='_id')
@@ -48,26 +52,50 @@ def get_fulldf(code):
     fulldf.set_index('date', inplace=True)
     return fulldf
 
+
 def model_train(code):
     fulldf = get_fulldf(code=code)
     xgbinpt = XGBInput(label=fulldf['close'], covariate=fulldf.drop(columns='close'), splitdt='2019-03-01 00:00:00')
-    param = {
-        'max_depth': 3,
-        'eta': .01,
-        'silent': 1,
-        'objective': 'reg:squarederror',
-        'nthread': 5,
-        'eval_metric': 'rmse'
-    }
 
     numround = 5000
     esr = 10
     register_matplotlib_converters()
 
-    xgbmod = xgb.train(param, xgbinpt.dtrain, numround, xgbinpt.evallist, early_stopping_rounds=esr)
+    # xgbmod = xgb.train(param, xgbinpt.dtrain, numround, xgbinpt.evallist, early_stopping_rounds=esr)
 
-    filename =  './/xgb'+ code + str(datetime.date.today()) + '.model'
+    # filename = './/' + code + str(datetime.date.today()) + '.model'
+    # os.makedirs(os.path.dirname(filename), exist_ok=True)
+    #
+    # with open(filename, "wb") as f:
+    #     pick.dump(xgbmod, f)
+
+    param = {
+        'depth': 2,
+        'learning_rate': .05,
+        'verbose': 'False',
+        'loss_function': 'RMSE',
+        'thread_count': 5,
+        'eval_metric': 'RMSE',
+        'boosting_type':'Plain'
+    }
+    model = CatBoostRegressor(depth=3,learning_rate=0.01,loss_function='RMSE',thread_count=5,eval_metric='RMSE',boosting_type='Ordered',
+        random_seed=42,iterations=5000
+    )
+
+    # print(list(predictors.columns))
+
+    model.fit(
+        xgbinpt.covariatetrain, xgbinpt.labeltrain,
+        # cat_features=list(predictors.columns),
+        eval_set=(xgbinpt.covariatetest, xgbinpt.labeltest),
+    #     logging_level='Verbose',  # you can uncomment this for text output
+    #     plot=True
+    );
+    filename = './/catb' + code + str(datetime.date.today()) + '.model'
     os.makedirs(os.path.dirname(filename), exist_ok=True)
 
     with open(filename, "wb") as f:
-        pickle.dump(xgbmod, f)
+        pick.dump(model, f)
+
+code = '000002'
+model_train(code=code)

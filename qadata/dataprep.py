@@ -23,7 +23,7 @@ def readdata(code,start, end):
 
     return result
 
-def fillinmissing(data, dtindex, fillin=None, indicator=False):
+def fillinmissing(data, dtindex, fillin=None, indicator=True):
     '''This function takes a data frame that is indexed by standard datetime index.
     It completes the data frame by encoding values to missing records.
         Args:
@@ -54,12 +54,13 @@ def get_dtindex(start,end):
 
 def get_parameters(code,start, end):
     outcome = readdata(code=code, start=start, end=end)
+    dtindex = get_dtindex(start=start, end=end)
     outcome= fillinmissing(data=outcome,
                                        dtindex=dtindex,
                                        fillin=0,
                                        indicator=True)
-    dtindex = get_dtindex(start=start, end=end)
-    return outcome, dtindex,
+
+    return outcome, dtindex
 
 def date2str(data):
 
@@ -68,13 +69,14 @@ def date2str(data):
     return json.loads(data.to_json(orient='records'))
 
 def upload_data(code,start,end):
-    outcome, dtindex = get_parameters(code=code, start=start, end=end)
+    outcome, dtindex= get_parameters(code=code, start=start, end=end)
     #connect to mongodb
     myclient = pymongo.MongoClient("mongodb://localhost:27017/")
     database = myclient['mydatabase']
     datacol = database[code+str(datetime.date.today())]
-    dtindexcol = database[code+str(datetime.date.today())+'index']
+    # dtindexcol = database[code+str(datetime.date.today())+'index']
+    outcome = outcome[0]
     outcome['date'] = outcome.index
     outcome = date2str(outcome)
     datacol.insert(outcome)
-    dtindexcol.insert(json.loads(outcome.T.to_json()).values())
+    # dtindexcol.insert(json.loads(outcome.T.to_json()).values())
