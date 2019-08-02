@@ -9,6 +9,7 @@ import pickle
 import dataprep
 import featureengineering as fe
 import xgbtrain
+import catbtrain
 
 
 code = '000002'
@@ -21,4 +22,8 @@ dataprep.upload_data(code=code,start=start,end=end)
 print('uploaddata')
 fe.upload_feature(code=code,dtindex=dtindex)
 
+#xgboost
 xgbtrain.model_train(code)
+
+#catboost
+# catbtrain.model_train(code)
