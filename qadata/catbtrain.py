@@ -97,5 +97,3 @@ def model_train(code):
     with open(filename, "wb") as f:
         pick.dump(model, f)
 
-code = '000002'
-model_train(code=code)
